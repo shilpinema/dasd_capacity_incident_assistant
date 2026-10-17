@@ -12,42 +12,55 @@ st.set_page_config(page_title="DASD Capacity Incident Assistant", page_icon="ðŸ–
 # Lightweight styling: no extra packages, works on Streamlit Community Cloud.
 st.markdown("""
 <style>
-  .stApp { background: #0b1220; }
-  [data-testid="stHeader"] { background: rgba(11,18,32,0.92); }
-  [data-testid="stSidebar"] { background: #111b2e; border-right: 1px solid #253247; }
-  .block-container { padding-top: 1.6rem; padding-bottom: 2.5rem; max-width: 1500px; }
-  .hero { padding: 1.45rem 1.6rem; border: 1px solid #29374d; border-radius: 18px;
-          background: linear-gradient(120deg,#15243a 0%,#111827 58%,#182438 100%); margin-bottom: 1rem; }
-  .eyebrow { color: #93c5fd; font-size: .76rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
-  .hero h1 { color: #f8fafc; font-size: 2rem; line-height: 1.2; margin: .45rem 0 .35rem 0; }
-  .hero p { color: #cbd5e1; margin: 0; font-size: .98rem; }
-  .status-pill { display: inline-block; margin-top: .9rem; border-radius: 999px; padding: .28rem .7rem;
-                 color: #fde68a; background: #422006; border: 1px solid #92400e; font-size: .75rem; font-weight: 700; }
-  h2 { color: #e5edf8 !important; padding-top: .65rem; }
-  h3 { color: #dbeafe !important; }
-  [data-testid="stMetric"] { background: #111b2e; border: 1px solid #29374d; padding: 1rem 1.1rem; border-radius: 14px; }
-  [data-testid="stMetricLabel"] { color: #aabbd0; }
-  [data-testid="stMetricValue"] { color: #f8fafc; }
-  [data-testid="stMetricDelta"] { font-size: .8rem; }
-  div[data-testid="stDataFrame"] { border: 1px solid #29374d; border-radius: 12px; overflow: hidden; }
-  div.stButton > button[kind="primary"] { background: #2563eb; border: 1px solid #3b82f6; border-radius: 10px; font-weight: 700; min-height: 2.8rem; }
-  div.stButton > button { border-radius: 10px; }
-  [data-testid="stExpander"] { border: 1px solid #29374d; border-radius: 12px; }
+  /* High-contrast, readable operations dashboard: light content canvas + dark branded hero */
+  :root { --ink:#172033; --muted:#475569; --line:#d6deea; --panel:#ffffff; --navy:#13243b; --blue:#1d4ed8; }
+  .stApp { background: #f3f6fb; color: var(--ink); }
+  [data-testid="stHeader"] { background: rgba(243,246,251,0.96); }
+  [data-testid="stSidebar"] { background: #e9eef6; border-right: 1px solid #cbd5e1; }
+  [data-testid="stSidebar"] * { color: #172033 !important; }
+  .block-container { padding-top: 1.35rem; padding-bottom: 2.5rem; max-width: 1500px; }
+  /* Make default Streamlit/Markdown text readable regardless of inherited theme */
+  .stApp, .stApp p, .stApp li, .stApp label, .stApp [data-testid="stMarkdownContainer"],
+  .stApp [data-testid="stMarkdownContainer"] p, .stApp [data-testid="stMarkdownContainer"] li,
+  .stApp [data-testid="stCaptionContainer"] { color: #243247; }
+  .stApp h1, .stApp h2, .stApp h3, .stApp h4 { color: #13243b !important; }
+  .hero { padding: 1.45rem 1.6rem; border: 1px solid #253a55; border-radius: 18px;
+          background: linear-gradient(120deg,#142a45 0%,#111c2d 58%,#1c304a 100%); margin-bottom: 1rem; }
+  .eyebrow { color: #bfdbfe; font-size: .8rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .hero h1 { color: #ffffff !important; font-size: 2rem; line-height: 1.25; margin: .45rem 0 .45rem 0; }
+  .hero p { color: #e2e8f0 !important; margin: 0; font-size: 1rem; line-height: 1.55; }
+  .status-pill { display: inline-block; margin-top: .9rem; border-radius: 999px; padding: .32rem .75rem;
+                 color: #ffefb0 !important; background: #51330b; border: 1px solid #a16207; font-size: .78rem; font-weight: 800; }
+  h2 { color: #13243b !important; padding-top: .65rem; }
+  h3 { color: #1e3a5f !important; }
+  [data-testid="stMetric"] { background: #ffffff; border: 1px solid #d5deea; padding: 1rem 1.1rem; border-radius: 14px; box-shadow: 0 2px 8px rgba(15,23,42,.04); }
+  [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: #475569 !important; font-size: .9rem !important; }
+  [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #13243b !important; font-weight: 750 !important; }
+  [data-testid="stMetricDelta"] { font-size: .85rem; }
+  div[data-testid="stDataFrame"] { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background:#fff; }
+  div.stButton > button[kind="primary"] { background: #1d4ed8; color: #ffffff !important; border: 1px solid #1d4ed8; border-radius: 10px; font-weight: 800; min-height: 2.9rem; }
+  div.stButton > button[kind="primary"]:hover { background: #1e40af; border-color: #1e40af; }
+  div.stButton > button { color: #172033 !important; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; }
+  div.stButton > button p { color: inherit !important; }
+  [data-testid="stExpander"] { border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff; }
+  [data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { color: #172033 !important; font-weight: 650; }
   [data-testid="stAlert"] { border-radius: 12px; }
-  .section-note { color: #94a3b8; font-size: .88rem; margin-top: -.55rem; margin-bottom: .8rem; }
+  [data-testid="stCheckbox"] label, [data-testid="stCheckbox"] label p { color: #243247 !important; }
+  [data-testid="stTextInput"] label, [data-testid="stSelectbox"] label, [data-testid="stRadio"] label { color: #243247 !important; }
+  .section-note { color: #526176 !important; font-size: .94rem; line-height: 1.5; margin-top: -.45rem; margin-bottom: .85rem; }
   .risk-banner { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.15rem;
-                 border:1px solid #92400e; border-radius:14px; background:linear-gradient(100deg,#2b1d16,#1b2433); margin:.7rem 0 1rem 0; }
-  .risk-label { color:#fbbf24; font-size:.72rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
-  .risk-title { color:#f8fafc; font-size:1.1rem; font-weight:750; margin:.15rem 0; }
-  .risk-copy { color:#cbd5e1; font-size:.88rem; }
-  .risk-value { color:#fbbf24; font-size:1.8rem; font-weight:800; white-space:nowrap; }
-  .agent-card { border:1px solid #29374d; border-radius:14px; padding:1rem; min-height:150px; background:#111b2e; }
-  .agent-kicker { color:#93c5fd; font-size:.7rem; font-weight:800; letter-spacing:.1em; text-transform:uppercase; }
-  .agent-name { color:#f8fafc; font-weight:750; font-size:1rem; margin:.35rem 0; }
-  .agent-status { display:inline-block; border-radius:999px; padding:.18rem .55rem; margin:.35rem 0; font-size:.72rem; font-weight:750; }
-  .agent-done { color:#bbf7d0; background:#14532d; border:1px solid #166534; }
-  .agent-note { color:#aabbd0; font-size:.82rem; line-height:1.45; margin-top:.3rem; }
-  .handoff-line { text-align:center; color:#64748b; font-size:.8rem; padding:.25rem 0 .6rem 0; }
+                 border:1px solid #e0a13b; border-radius:14px; background:linear-gradient(100deg,#fff7e6,#ffffff); margin:.7rem 0 1rem 0; }
+  .risk-label { color:#8a4b08 !important; font-size:.76rem; font-weight:850; letter-spacing:.09em; text-transform:uppercase; }
+  .risk-title { color:#172033 !important; font-size:1.15rem; font-weight:800; margin:.2rem 0; }
+  .risk-copy { color:#475569 !important; font-size:.92rem; line-height:1.45; }
+  .risk-value { color:#9a5200 !important; font-size:1.9rem; font-weight:850; white-space:nowrap; }
+  .agent-card { border:1px solid #d3dce8; border-radius:14px; padding:1rem; min-height:168px; background:#ffffff; box-shadow:0 2px 8px rgba(15,23,42,.04); }
+  .agent-kicker { color:#1d4ed8 !important; font-size:.75rem; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+  .agent-name { color:#13243b !important; font-weight:800; font-size:1.02rem; line-height:1.4; margin:.4rem 0; }
+  .agent-status { display:inline-block; border-radius:999px; padding:.2rem .6rem; margin:.35rem 0; font-size:.76rem; font-weight:800; }
+  .agent-done { color:#166534 !important; background:#dcfce7; border:1px solid #86efac; }
+  .agent-note { color:#475569 !important; font-size:.9rem; line-height:1.55; margin-top:.35rem; }
+  .handoff-line { text-align:center; color:#526176 !important; font-size:.88rem; font-weight:650; padding:.35rem 0 .65rem 0; }
   footer { visibility: hidden; }
 </style>
 <div class="hero">
@@ -73,13 +86,14 @@ c1.metric("Monitored pools", len(inventory))
 c2.metric("Critical pools", len(critical))
 c3.metric("Warning pools", len(warning))
 c4.metric("Fast-growth pools", len(fast_growth))
-chart = px.bar(inventory.sort_values("utilization_pct", ascending=False), x="pool_id", y="utilization_pct", color="environment", template="plotly_dark",
+chart = px.bar(inventory.sort_values("utilization_pct", ascending=False), x="pool_id", y="utilization_pct", color="environment", template="plotly_white",
                hover_data=["warning_threshold_pct", "critical_threshold_pct", "daily_growth_pp", "business_criticality"],
                title="Current DASD pool utilization", labels={"pool_id": "Storage pool", "utilization_pct": "Utilization (%)", "environment": "Environment"})
-chart.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title_text="Environment", margin=dict(l=12,r=12,t=55,b=12), height=390)
-chart.update_yaxes(range=[0, 100], ticksuffix="%", gridcolor="#263449")
-chart.add_hline(y=85, line_dash="dash", line_color="#f59e0b", annotation_text="Warning 85%", annotation_position="top left")
-chart.add_hline(y=95, line_dash="dash", line_color="#ef4444", annotation_text="Critical 95%", annotation_position="bottom right")
+chart.update_layout(paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor="rgba(255,255,255,0)", font=dict(color="#243247"), title_font=dict(color="#13243b"), legend_title_text="Environment", margin=dict(l=12,r=12,t=55,b=12), height=390)
+chart.update_yaxes(range=[0, 100], ticksuffix="%", gridcolor="#dbe3ee", color="#475569")
+chart.update_xaxes(color="#475569", gridcolor="#e2e8f0")
+chart.add_hline(y=85, line_dash="dash", line_color="#f59e0b", annotation_text="Warning 85%", annotation_position="top left", annotation_font_color="#854d0e")
+chart.add_hline(y=95, line_dash="dash", line_color="#ef4444", annotation_text="Critical 95%", annotation_position="bottom right", annotation_font_color="#991b1b")
 st.plotly_chart(chart, use_container_width=True)
 # Spotlight the predefined synthetic incident so executives can orient quickly.
 spotlight = inventory.loc[inventory["pool_id"] == "PROD-DASD-07"]
