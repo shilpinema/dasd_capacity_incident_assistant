@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import traceback
 from tools import (get_storage_inventory, get_pool_history, get_pool_events,
                    calculate_utilization, forecast_threshold_breach, create_incident_report)
+from llm_client import analyze_investigation
 
 
 def _log(trace: list[dict], agent: str, event: str, detail: str, kind: str = "info") -> None:
@@ -48,7 +49,7 @@ def monitoring_agent(trace: list[dict], growth_alert_pp: float = 0.5) -> dict:
             "selected_incident": incident}
 
 
-def investigation_agent(incident: dict, trace: list[dict]) -> dict:
+def investigation_agent(incident: dict, trace: list[dict], use_llm: bool = False, llm_config: dict | None = None) -> dict:
     name = "Capacity Investigation Agent"
     pool_id = incident["pool_id"]
     _log(trace, name, "start", f"Investigating incident {incident['incident_id']} for {pool_id}.")
@@ -85,6 +86,19 @@ def investigation_agent(incident: dict, trace: list[dict]) -> dict:
               "historical_average_growth_pp_per_day": daily_average, "observed_facts": observed_facts,
               "hypotheses": hypotheses, "missing_evidence": missing_evidence,
               "root_cause_status": "Unconfirmed — evidence supports a possible contributor, not a proven cause"}
+    report["reasoning_mode"] = "deterministic_python"
+    report["llm_analysis"] = None
+    if use_llm:
+        _log(trace, name, "llm_call", "Submitting retrieved synthetic evidence for optional LLM interpretation.", "llm")
+        try:
+            llm_result = analyze_investigation(incident, report, llm_config or {})
+            report["llm_analysis"] = llm_result
+            report["reasoning_mode"] = "deterministic_python_plus_llm"
+            # Preserve deterministic findings. Display LLM suggestions in a separate field.
+            _log(trace, name, "llm_result", f"LLM returned structured analysis with confidence={llm_result['confidence']}.", "llm")
+        except Exception as exc:
+            report["llm_error"] = f"{type(exc).__name__}: {exc}"
+            _log(trace, name, "llm_fallback", f"Optional LLM unavailable; retaining deterministic findings ({type(exc).__name__}).", "warning")
     _log(trace, name, "handoff", f"Passing investigation report with {len(observed_facts)} observations and {len(missing_evidence)} evidence gaps to remediation agent.", "handoff")
     return report
 
@@ -128,14 +142,14 @@ def remediation_agent(incident: dict, investigation: dict, trace: list[dict]) ->
     return report
 
 
-def run_workflow() -> dict:
+def run_workflow(use_llm: bool = False, llm_config: dict | None = None) -> dict:
     trace: list[dict] = []
     try:
         monitoring = monitoring_agent(trace)
         if not monitoring.get("selected_incident"):
             return {"status": "no_incidents", "monitoring": monitoring, "trace": trace}
         incident = monitoring["selected_incident"]
-        investigation = investigation_agent(incident, trace)
+        investigation = investigation_agent(incident, trace, use_llm=use_llm, llm_config=llm_config)
         remediation = remediation_agent(incident, investigation, trace)
         consolidated = {"incident": incident, "investigation": investigation, "remediation": remediation,
                         "agent_handoffs": ["Capacity Monitoring Agent → Capacity Investigation Agent",

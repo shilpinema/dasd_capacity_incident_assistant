@@ -5,10 +5,11 @@ import plotly.express as px
 import streamlit as st
 from data import build_inventory, HISTORIES
 from agents import run_workflow
+from llm_client import resolve_llm_config
 
 st.set_page_config(page_title="DASD Capacity Incident Assistant", page_icon="🖥️", layout="wide")
 st.title("DASD Capacity Incident Assistant")
-st.caption("Synthetic IBM Z storage operations demo · Deterministic Python agents · No production connectivity")
+st.caption("Synthetic IBM Z storage operations demo · Deterministic agents with optional LLM-assisted investigation · No production connectivity")
 st.info("All pools, events, and metrics are synthetic. Forecasts are linear estimates, not guaranteed breach dates. No storage changes are executed.")
 
 inventory = build_inventory()
@@ -34,9 +35,22 @@ st.dataframe(inventory[show_cols].style.format({"utilization_pct": "{:.1f}%", "d
 st.header("B. Run Agent Investigation")
 if "workflow_result" not in st.session_state:
     st.session_state.workflow_result = None
+use_llm = st.checkbox("Enable optional LLM-assisted investigation", value=False,
+                      help="Requires an OpenAI-compatible API endpoint, model name, and API key in Streamlit Secrets. Without configuration, the app safely uses deterministic Python logic.")
+try:
+    app_secrets = st.secrets
+except Exception:
+    app_secrets = {}
+llm_config = resolve_llm_config(app_secrets)
+llm_ready = all(llm_config.get(k) for k in ("base_url", "api_key", "model"))
+if use_llm:
+    if llm_ready:
+        st.info(f"LLM mode enabled · configured model: {llm_config['model']}. Synthetic evidence only; no production tools are available to the model.")
+    else:
+        st.warning("LLM mode selected, but configuration is incomplete. The workflow will safely fall back to deterministic Python investigation. Configure LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL in Streamlit Secrets to enable inference.")
 if st.button("Investigate Capacity Risk", type="primary"):
     with st.spinner("Running monitoring → investigation → remediation agents..."):
-        st.session_state.workflow_result = run_workflow()
+        st.session_state.workflow_result = run_workflow(use_llm=use_llm, llm_config=llm_config)
 
 result = st.session_state.workflow_result
 if result is None:
@@ -77,6 +91,26 @@ else:
             for item in investigation["missing_evidence"]:
                 st.write(f"- {item}")
             st.caption(investigation["root_cause_status"])
+        st.markdown(f"**Investigation mode:** `{investigation.get('reasoning_mode', 'deterministic_python')}`")
+        if investigation.get("llm_analysis"):
+            llm_result = investigation["llm_analysis"]
+            st.markdown("**Optional LLM analysis — advisory, evidence-bounded**")
+            st.write(llm_result["summary"])
+            st.caption(f"LLM confidence: {llm_result['confidence']} · Validate recommendations against authoritative telemetry.")
+            llm_left, llm_right = st.columns(2)
+            with llm_left:
+                st.markdown("**LLM hypotheses**")
+                for item in llm_result["hypotheses"]:
+                    st.write(f"- {item}")
+                st.markdown("**Additional verification checks**")
+                for item in llm_result["additional_checks"]:
+                    st.write(f"- {item}")
+            with llm_right:
+                st.markdown("**LLM evidence limitations**")
+                for item in llm_result["evidence_limitations"]:
+                    st.write(f"- {item}")
+        elif investigation.get("llm_error"):
+            st.warning("LLM analysis was not used; deterministic findings are shown. Details: " + investigation["llm_error"])
         st.markdown("**Simulated operational events**")
         st.dataframe(pd.DataFrame(investigation["events"]), use_container_width=True, hide_index=True)
 
@@ -112,7 +146,7 @@ with st.expander("About the demo architecture"):
     st.markdown("""
     - **Agent orchestration:** Python functions exchange structured dictionaries in a fixed workflow.
     - **Tools:** inventory, history, events, utilization calculation, forecast, and report creation are callable Python functions.
-    - **Reasoning boundary:** findings and forecasts are deterministic; hypotheses are explicitly labeled and not presented as verified root causes.
-    - **Safety:** human review is required before any proposed change; no production systems or APIs are connected.
-    - **LLM status:** no LLM is configured or claimed in this version.
+    - **Reasoning boundary:** detection, capacity calculations, and forecasts are deterministic Python. Optional LLM analysis interprets only the retrieved synthetic evidence.
+    - **Safety:** the LLM has no production tools; human review is required before any proposed change.
+    - **LLM status:** optional OpenAI-compatible chat-completions endpoint. When disabled or unavailable, deterministic investigation continues.
     """)

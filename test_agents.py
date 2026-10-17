@@ -39,3 +39,11 @@ def test_unknown_pool_fails_safely():
         pass
     else:
         raise AssertionError("Expected KeyError for unknown pool")
+
+
+def test_llm_is_optional_and_workflow_falls_back_without_config():
+    result = run_workflow(use_llm=True, llm_config={})
+    assert result["status"] == "success"
+    assert result["investigation"]["reasoning_mode"] == "deterministic_python"
+    assert result["investigation"]["llm_analysis"] is None
+    assert any(item["event"] == "llm_fallback" for item in result["trace"])
