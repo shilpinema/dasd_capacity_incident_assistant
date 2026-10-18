@@ -76,14 +76,16 @@ pytest -q
 - No production storage action is executed. The interface presents an approval checklist and a pending approval record.
 
 
-## Agentic AI learning features
+## Agentic AI learning features and quota controls
 
-This version adds a bounded, optional LLM tool-calling loop and a rule-based evidence verification stage.
+This version uses a quota-conscious single-request LLM pattern while preserving the multi-agent workflow.
 
-- **Structured LLM response:** summary, hypotheses, additional checks, limitations, evidence references, and claim statuses.
-- **Approved tool calling:** the model may request only `get_pool_history`, `get_pool_events`, `calculate_utilization`, and `forecast_threshold_breach`. Calls are read-only, restricted to the active incident pool, and limited to three tool-call rounds.
-- **Bounded retries:** transient HTTP 429/5xx errors and connection timeouts are retried with short exponential backoff. The request timeout is 60 seconds. Deterministic fallback remains available.
+- **Single LLM request:** Python gathers the incident snapshot, history, synthetic events, trend, hypotheses, and evidence gaps first. Gemini receives this prepared evidence in one chat-completions request; it does not perform tool-calling rounds.
+- **Structured LLM response:** summary, hypotheses, additional checks, limitations, evidence references, and claim statuses are validated before display.
+- **Successful-result cache:** unchanged evidence and model configuration reuse the last successful result in the running app process. The cache is process-local and may be cleared when the app restarts; failures are never cached.
+- **Quota-aware errors:** HTTP 429 quota errors are not retried. Provider response bodies are included in error messages to make diagnosis easier. Transient 5xx errors and connection timeouts have bounded retries, with a 90-second overall request budget.
 - **Evidence verification stage:** Python checks warning-threshold logic, forecast arithmetic, history availability, and cautious root-cause wording. The displayed score is a rule-based verification score, **not** a probability of correctness.
-- **Traceability:** approved tool calls and verification checks are surfaced in the UI.
+- **Deterministic fallback:** if LLM is disabled, misconfigured, quota-limited, unavailable, or returns invalid output, the rest of the workflow continues using deterministic findings.
+- **Traceability:** the UI records when an LLM request starts, when a cached result is reused, and when fallback occurs.
 
-The model cannot run arbitrary code or execute production changes. All data is synthetic. Gemini/OpenAI-compatible provider availability and quotas still apply; retries do not guarantee successful inference.
+The model cannot run arbitrary code or execute production changes. All data is synthetic. The cache is an optimization, not a hard quota limit, and provider quotas still apply.
