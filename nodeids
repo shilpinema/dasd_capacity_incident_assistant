@@ -1,0 +1,9 @@
+[
+  "tests/test_agents.py::test_history_and_workflow_handoffs",
+  "tests/test_agents.py::test_inventory_has_ten_pools_and_consistent_capacity",
+  "tests/test_agents.py::test_llm_is_optional_and_workflow_falls_back_without_config",
+  "tests/test_agents.py::test_llm_tool_allowlist_is_read_only_and_pool_scoped",
+  "tests/test_agents.py::test_predefined_incident_forecast_is_five_days",
+  "tests/test_agents.py::test_unknown_pool_fails_safely",
+  "tests/test_agents.py::test_verification_stage_checks_forecast_and_reports_score"
+]

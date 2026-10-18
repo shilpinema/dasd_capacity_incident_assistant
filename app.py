@@ -218,6 +218,30 @@ else:
             st.info("Optional LLM analysis was unavailable for this run. Deterministic findings and recommendations are still available.")
             with st.expander("LLM diagnostic details", expanded=False):
                 st.code(investigation["llm_error"])
+        if investigation.get("llm_analysis"):
+            st.markdown("**LLM evidence references and findings**")
+            llm_result = investigation["llm_analysis"]
+            if llm_result.get("evidence_refs"):
+                st.caption("Evidence references: " + " · ".join(llm_result["evidence_refs"]))
+            if llm_result.get("findings"):
+                st.dataframe(pd.DataFrame(llm_result["findings"]), use_container_width=True, hide_index=True)
+            st.caption(f"Approved read-only tool calls: {len(llm_result.get('tool_calls_made', []))} · Tool-call rounds: {llm_result.get('tool_call_rounds', 0)}")
+
+        verification = result.get("verification", {})
+        st.markdown("### Evidence verification")
+        st.markdown('<div class="section-note">Rule-based checks validate arithmetic and evidence coverage; this score is not a probability of correctness.</div>', unsafe_allow_html=True)
+        v1, v2, v3 = st.columns(3)
+        v1.metric("Verification score", f"{verification.get('evidence_confidence_score', 0)} / 100")
+        v2.metric("Checks passed", f"{verification.get('checks_passed', 0)} / {verification.get('checks_total', 0)}")
+        v3.metric("Root cause", "Unconfirmed")
+        st.caption(verification.get("summary", "Verification results unavailable."))
+        with st.expander("View verification checks", expanded=False):
+            checks = verification.get("checks", [])
+            if checks:
+                st.dataframe(pd.DataFrame(checks), use_container_width=True, hide_index=True)
+            else:
+                st.write("No verification checks available.")
+
         st.markdown("**Simulated operational events**")
         st.dataframe(pd.DataFrame(investigation["events"]), use_container_width=True, hide_index=True)
 

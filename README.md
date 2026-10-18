@@ -74,3 +74,16 @@ pytest -q
 - Synthetic event correlation does not prove root cause.
 - LLM responses are advisory and may be wrong; validate against authoritative telemetry.
 - No production storage action is executed. The interface presents an approval checklist and a pending approval record.
+
+
+## Agentic AI learning features
+
+This version adds a bounded, optional LLM tool-calling loop and a rule-based evidence verification stage.
+
+- **Structured LLM response:** summary, hypotheses, additional checks, limitations, evidence references, and claim statuses.
+- **Approved tool calling:** the model may request only `get_pool_history`, `get_pool_events`, `calculate_utilization`, and `forecast_threshold_breach`. Calls are read-only, restricted to the active incident pool, and limited to three tool-call rounds.
+- **Bounded retries:** transient HTTP 429/5xx errors and connection timeouts are retried with short exponential backoff. The request timeout is 60 seconds. Deterministic fallback remains available.
+- **Evidence verification stage:** Python checks warning-threshold logic, forecast arithmetic, history availability, and cautious root-cause wording. The displayed score is a rule-based verification score, **not** a probability of correctness.
+- **Traceability:** approved tool calls and verification checks are surfaced in the UI.
+
+The model cannot run arbitrary code or execute production changes. All data is synthetic. Gemini/OpenAI-compatible provider availability and quotas still apply; retries do not guarantee successful inference.

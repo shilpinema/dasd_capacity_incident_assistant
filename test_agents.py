@@ -47,3 +47,31 @@ def test_llm_is_optional_and_workflow_falls_back_without_config():
     assert result["investigation"]["reasoning_mode"] == "deterministic_python"
     assert result["investigation"]["llm_analysis"] is None
     assert any(item["event"] == "llm_fallback" for item in result["trace"])
+
+
+def test_verification_stage_checks_forecast_and_reports_score():
+    result = run_workflow()
+    verification = result["verification"]
+    assert verification["checks_total"] == 4
+    assert verification["checks_passed"] >= 3
+    assert 0 <= verification["evidence_confidence_score"] <= 100
+    assert verification["root_cause_confirmed"] is False
+    assert any(item["agent"] == "Evidence Verification Agent" for item in result["trace"])
+
+
+def test_llm_tool_allowlist_is_read_only_and_pool_scoped():
+    from llm_client import _execute_tool
+    history = _execute_tool("get_pool_history", {"pool_id": "PROD-DASD-07"}, "PROD-DASD-07")
+    assert len(history) == 7
+    try:
+        _execute_tool("get_pool_history", {"pool_id": "DR-DASD-01"}, "PROD-DASD-07")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Tool execution must be restricted to the active incident pool")
+    try:
+        _execute_tool("delete_storage", {"pool_id": "PROD-DASD-07"}, "PROD-DASD-07")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("Unknown tools must be rejected")

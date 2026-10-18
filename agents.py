@@ -91,7 +91,7 @@ def investigation_agent(incident: dict, trace: list[dict], use_llm: bool = False
     if use_llm:
         _log(trace, name, "llm_call", "Submitting retrieved synthetic evidence for optional LLM interpretation.", "llm")
         try:
-            llm_result = analyze_investigation(incident, report, llm_config or {})
+            llm_result = analyze_investigation(incident, report, llm_config or {}, timeout_seconds=60, trace=trace)
             report["llm_analysis"] = llm_result
             report["reasoning_mode"] = "deterministic_python_plus_llm"
             # Preserve deterministic findings. Display LLM suggestions in a separate field.
@@ -101,6 +101,50 @@ def investigation_agent(incident: dict, trace: list[dict], use_llm: bool = False
             _log(trace, name, "llm_fallback", f"Optional LLM unavailable; retaining deterministic findings ({type(exc).__name__}).", "warning")
     _log(trace, name, "handoff", f"Passing investigation report with {len(observed_facts)} observations and {len(missing_evidence)} evidence gaps to remediation agent.", "handoff")
     return report
+
+
+def verification_agent(incident: dict, investigation: dict, remediation: dict, trace: list[dict]) -> dict:
+    """Verify deterministic claims and calculate transparent evidence confidence.
+
+    This is a rule-based evidence score, not a probability that the conclusion is true.
+    """
+    name = "Evidence Verification Agent"
+    _log(trace, name, "start", "Checking numerical claims and evidence coverage.")
+    snapshot = incident.get("pool_snapshot", {})
+    forecast = remediation.get("forecast", {})
+    checks = []
+    utilization = snapshot.get("utilization_pct")
+    warning = snapshot.get("warning_threshold_pct")
+    critical = snapshot.get("critical_threshold_pct")
+    checks.append({"check": "Utilization is at or above warning threshold",
+                   "passed": isinstance(utilization, (int, float)) and isinstance(warning, (int, float)) and utilization >= warning,
+                   "detail": f"Utilization={utilization}%; warning={warning}%"})
+    days = forecast.get("estimated_days_to_critical")
+    growth = forecast.get("daily_growth_pp")
+    expected_days = ((critical - utilization) / growth) if isinstance(critical, (int, float)) and isinstance(utilization, (int, float)) and isinstance(growth, (int, float)) and growth > 0 else None
+    forecast_passed = expected_days is not None and isinstance(days, (int, float)) and abs(expected_days - days) <= 0.05
+    checks.append({"check": "Forecast arithmetic matches linear formula", "passed": forecast_passed,
+                   "detail": f"Reported={days}; calculated={round(expected_days, 2) if expected_days is not None else 'not calculable'}"})
+    history_count = len(investigation.get("history", []))
+    history_passed = history_count >= 2
+    checks.append({"check": "At least two history points are available", "passed": history_passed, "detail": f"History points={history_count}"})
+    root_cause_unconfirmed = "unconfirmed" in investigation.get("root_cause_status", "").lower()
+    checks.append({"check": "Root cause is not overstated", "passed": root_cause_unconfirmed,
+                   "detail": investigation.get("root_cause_status", "No root-cause status supplied")})
+    passed_count = sum(1 for item in checks if item["passed"])
+    # Evidence coverage reflects verifiable checks and available history; it is not an accuracy probability.
+    confidence_score = round(100 * passed_count / len(checks))
+    llm = investigation.get("llm_analysis") or {}
+    llm_findings = llm.get("findings", [])
+    unsupported = [item for item in llm_findings if item.get("status") == "unverified"]
+    result = {"checks": checks, "checks_passed": passed_count, "checks_total": len(checks),
+              "evidence_confidence_score": confidence_score,
+              "score_label": "Rule-based verification score, not probability of correctness",
+              "llm_findings_reviewed": len(llm_findings), "llm_findings_unverified": len(unsupported),
+              "root_cause_confirmed": False,
+              "summary": f"{passed_count} of {len(checks)} deterministic checks passed. Root cause remains unconfirmed."}
+    _log(trace, name, "complete", result["summary"])
+    return result
 
 
 def remediation_agent(incident: dict, investigation: dict, trace: list[dict]) -> dict:
@@ -151,13 +195,14 @@ def run_workflow(use_llm: bool = False, llm_config: dict | None = None) -> dict:
         incident = monitoring["selected_incident"]
         investigation = investigation_agent(incident, trace, use_llm=use_llm, llm_config=llm_config)
         remediation = remediation_agent(incident, investigation, trace)
-        consolidated = {"incident": incident, "investigation": investigation, "remediation": remediation,
+        verification = verification_agent(incident, investigation, remediation, trace)
+        consolidated = {"incident": incident, "investigation": investigation, "remediation": remediation, "verification": verification,
                         "agent_handoffs": ["Capacity Monitoring Agent → Capacity Investigation Agent",
                                            "Capacity Investigation Agent → Remediation and Operations Agent"]}
         report = create_incident_report(consolidated)
         _log(trace, "Orchestrator", "complete", "All three agents completed and consolidated report created.")
         return {"status": "success", "monitoring": monitoring, "incident": incident,
-                "investigation": investigation, "remediation": remediation, "report": report, "trace": trace}
+                "investigation": investigation, "remediation": remediation, "verification": verification, "report": report, "trace": trace}
     except Exception as exc:
         _log(trace, "Orchestrator", "failure", f"Workflow failed safely: {type(exc).__name__}: {exc}", "error")
         return {"status": "error", "error": f"{type(exc).__name__}: {exc}", "trace": trace}
