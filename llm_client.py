@@ -49,10 +49,15 @@ def _post_chat(endpoint: str, payload: dict, api_key: str, timeout_seconds: int,
             with urlopen(request, timeout=request_timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace")
+
             if exc.code in RETRYABLE_HTTP_CODES and attempt < MAX_REQUEST_ATTEMPTS - 1:
                 time.sleep(1 * (2 ** attempt))
                 continue
-            raise RuntimeError(f"LLM provider returned HTTP {exc.code}.") from None
+
+            raise RuntimeError(
+                f"LLM provider returned HTTP {exc.code}: {error_body[:1000]}"
+            ) from None
         except (URLError, TimeoutError) as exc:
             if attempt < MAX_REQUEST_ATTEMPTS - 1:
                 time.sleep(min(1, max(0, deadline - time.monotonic())))
