@@ -7,61 +7,59 @@ from data import build_inventory, HISTORIES
 from agents import run_workflow
 from llm_client import resolve_llm_config
 
-st.set_page_config(page_title="DASD Capacity Incident Assistant", page_icon="🖥️", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="DASD Capacity Incident Assistant", page_icon="🖥️", layout="wide", initial_sidebar_state="collapsed")
 
 # Lightweight styling: no extra packages, works on Streamlit Community Cloud.
 st.markdown("""
 <style>
-  /* High-contrast, readable operations dashboard: light content canvas + dark branded hero */
-  :root { --ink:#172033; --muted:#475569; --line:#d6deea; --panel:#ffffff; --navy:#13243b; --blue:#1d4ed8; }
-  .stApp { background: #f3f6fb; color: var(--ink); }
-  [data-testid="stHeader"] { background: rgba(243,246,251,0.96); }
-  [data-testid="stSidebar"] { background: #e9eef6; border-right: 1px solid #cbd5e1; }
-  [data-testid="stSidebar"] * { color: #172033 !important; }
-  .block-container { padding-top: 1.35rem; padding-bottom: 2.5rem; max-width: 1500px; }
-  /* Make default Streamlit/Markdown text readable regardless of inherited theme */
-  .stApp, .stApp p, .stApp li, .stApp label, .stApp [data-testid="stMarkdownContainer"],
-  .stApp [data-testid="stMarkdownContainer"] p, .stApp [data-testid="stMarkdownContainer"] li,
-  .stApp [data-testid="stCaptionContainer"] { color: #243247; }
-  .stApp h1, .stApp h2, .stApp h3, .stApp h4 { color: #13243b !important; }
-  .hero { padding: 1.45rem 1.6rem; border: 1px solid #253a55; border-radius: 18px;
-          background: linear-gradient(120deg,#142a45 0%,#111c2d 58%,#1c304a 100%); margin-bottom: 1rem; }
-  .eyebrow { color: #bfdbfe; font-size: .8rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-  .hero h1 { color: #ffffff !important; font-size: 2rem; line-height: 1.25; margin: .45rem 0 .45rem 0; }
-  .hero p { color: #e2e8f0 !important; margin: 0; font-size: 1rem; line-height: 1.55; }
-  .status-pill { display: inline-block; margin-top: .9rem; border-radius: 999px; padding: .32rem .75rem;
-                 color: #ffefb0 !important; background: #51330b; border: 1px solid #a16207; font-size: .78rem; font-weight: 800; }
-  h2 { color: #13243b !important; padding-top: .65rem; }
-  h3 { color: #1e3a5f !important; }
-  [data-testid="stMetric"] { background: #ffffff; border: 1px solid #d5deea; padding: 1rem 1.1rem; border-radius: 14px; box-shadow: 0 2px 8px rgba(15,23,42,.04); }
-  [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: #475569 !important; font-size: .9rem !important; }
-  [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #13243b !important; font-weight: 750 !important; }
-  [data-testid="stMetricDelta"] { font-size: .85rem; }
-  div[data-testid="stDataFrame"] { border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; background:#fff; }
-  div.stButton > button[kind="primary"] { background: #1d4ed8; color: #ffffff !important; border: 1px solid #1d4ed8; border-radius: 10px; font-weight: 800; min-height: 2.9rem; }
-  div.stButton > button[kind="primary"]:hover { background: #1e40af; border-color: #1e40af; }
-  div.stButton > button { color: #172033 !important; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 10px; }
-  div.stButton > button p { color: inherit !important; }
-  [data-testid="stExpander"] { border: 1px solid #cbd5e1; border-radius: 12px; background: #ffffff; }
-  [data-testid="stExpander"] summary, [data-testid="stExpander"] summary p { color: #172033 !important; font-weight: 650; }
-  [data-testid="stAlert"] { border-radius: 12px; }
-  [data-testid="stCheckbox"] label, [data-testid="stCheckbox"] label p { color: #243247 !important; }
-  [data-testid="stTextInput"] label, [data-testid="stSelectbox"] label, [data-testid="stRadio"] label { color: #243247 !important; }
-  .section-note { color: #526176 !important; font-size: .94rem; line-height: 1.5; margin-top: -.45rem; margin-bottom: .85rem; }
-  .risk-banner { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 1.15rem;
-                 border:1px solid #e0a13b; border-radius:14px; background:linear-gradient(100deg,#fff7e6,#ffffff); margin:.7rem 0 1rem 0; }
-  .risk-label { color:#8a4b08 !important; font-size:.76rem; font-weight:850; letter-spacing:.09em; text-transform:uppercase; }
-  .risk-title { color:#172033 !important; font-size:1.15rem; font-weight:800; margin:.2rem 0; }
-  .risk-copy { color:#475569 !important; font-size:.92rem; line-height:1.45; }
-  .risk-value { color:#9a5200 !important; font-size:1.9rem; font-weight:850; white-space:nowrap; }
-  .agent-card { border:1px solid #d3dce8; border-radius:14px; padding:1rem; min-height:168px; background:#ffffff; box-shadow:0 2px 8px rgba(15,23,42,.04); }
-  .agent-kicker { color:#1d4ed8 !important; font-size:.75rem; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
-  .agent-name { color:#13243b !important; font-weight:800; font-size:1.02rem; line-height:1.4; margin:.4rem 0; }
-  .agent-status { display:inline-block; border-radius:999px; padding:.2rem .6rem; margin:.35rem 0; font-size:.76rem; font-weight:800; }
-  .agent-done { color:#166534 !important; background:#dcfce7; border:1px solid #86efac; }
-  .agent-note { color:#475569 !important; font-size:.9rem; line-height:1.55; margin-top:.35rem; }
-  .handoff-line { text-align:center; color:#526176 !important; font-size:.88rem; font-weight:650; padding:.35rem 0 .65rem 0; }
-  footer { visibility: hidden; }
+  :root { --navy-950:#07111f; --navy-900:#0b1728; --navy-800:#122238; --line:#26384e;
+          --text:#edf4fc; --muted:#9eb0c5; --blue:#91a9c4; --amber:#e9b65b; --red:#d96f6f; }
+  .stApp { background: radial-gradient(ellipse at 12% 0%, #14253d 0%, #0b1422 42%, #080f1a 100%); color:var(--text); }
+  [data-testid="stHeader"] { background:rgba(8,15,26,.88); }
+  [data-testid="stSidebar"] { background:#0b1728; border-right:1px solid var(--line); }
+  .block-container { padding-top:1.25rem; padding-bottom:3rem; max-width:1600px; }
+  [data-testid="stMainBlockContainer"] { gap:1.1rem; }
+  .hero { padding:1.7rem 1.9rem; border:1px solid #2b4059; border-radius:18px;
+          background:linear-gradient(112deg,rgba(19,34,53,.98),rgba(10,22,37,.98) 58%,rgba(15,29,45,.98));
+          margin-bottom:1rem; box-shadow:0 14px 36px rgba(0,0,0,.18); }
+  .eyebrow { color:#8fc5ff; font-size:.78rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+  .hero h1 { color:#f7fbff; font-size:clamp(2rem,3vw,2.65rem); letter-spacing:-.035em; line-height:1.12; margin:.55rem 0 .55rem; }
+  .hero p { color:#c4d2e2; margin:0; font-size:1.04rem; line-height:1.55; max-width:900px; }
+  .status-pill { display:inline-block; margin-top:1.1rem; border-radius:999px; padding:.42rem .8rem;
+                 color:#ffe2a3; background:rgba(120,75,9,.23); border:1px solid #8b641d; font-size:.76rem; font-weight:800; letter-spacing:.04em; }
+  h1,h2,h3 { letter-spacing:-.02em; }
+  h2 { color:#f0f6ff !important; font-size:1.55rem !important; padding-top:.55rem; margin-bottom:.2rem !important; }
+  h3 { color:#dceaff !important; font-size:1.12rem !important; }
+  p, li, label { line-height:1.55; }
+  .section-note { color:var(--muted); font-size:.94rem; line-height:1.5; margin-top:0; margin-bottom:.9rem; }
+  [data-testid="stMetric"] { background:linear-gradient(145deg,#14243a,#101c2e); border:1px solid #2b4058; padding:1.05rem 1.15rem; border-radius:15px; min-height:112px; }
+  [data-testid="stMetricLabel"] { color:#b4c5d9; font-size:.88rem; }
+  [data-testid="stMetricValue"] { color:#f8fbff; font-size:1.9rem; font-weight:750; }
+  [data-testid="stMetricDelta"] { font-size:.82rem; }
+  div[data-testid="stDataFrame"] { border:1px solid #2b4058; border-radius:12px; overflow:hidden; }
+  div.stButton > button[kind="primary"] { background:linear-gradient(105deg,#344c68,#405b78); border:1px solid #617991; border-radius:11px; font-weight:800; min-height:3.15rem; box-shadow:0 5px 18px rgba(0,0,0,.18); }
+  div.stButton > button { border-radius:10px; min-height:2.55rem; font-weight:650; }
+  [data-testid="stDownloadButton"] button { border-radius:10px; font-weight:750; }
+  [data-testid="stExpander"] { border:1px solid #2b4058; border-radius:12px; background:rgba(14,27,44,.62); }
+  [data-testid="stAlert"] { border-radius:12px; border:1px solid #344960; }
+  hr { border-color:#26384e !important; }
+  .risk-banner { display:flex; align-items:center; justify-content:space-between; gap:1.25rem; padding:1.2rem 1.35rem;
+                 border:1px solid #685634; border-left:3px solid var(--amber); border-radius:15px;
+                 background:linear-gradient(100deg,rgba(48,40,27,.55),rgba(17,30,46,.95) 68%); margin:.8rem 0 1.1rem; }
+  .risk-label { color:#f6c86d; font-size:.74rem; font-weight:850; letter-spacing:.13em; text-transform:uppercase; }
+  .risk-title { color:#f8fbff; font-size:1.2rem; font-weight:800; margin:.25rem 0; }
+  .risk-copy { color:#c1cede; font-size:.91rem; line-height:1.5; }
+  .risk-value { color:#ffd071; font-size:2.2rem; font-weight:850; white-space:nowrap; line-height:1.05; }
+  .agent-card { border:1px solid #314257; border-radius:15px; padding:1.1rem; min-height:174px; height:100%;
+                background:linear-gradient(150deg,#132237,#0e1929); box-shadow:0 8px 24px rgba(0,0,0,.12); }
+  .agent-kicker { color:#a8bbd1; font-size:.72rem; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
+  .agent-name { color:#f8fbff; font-weight:800; font-size:1.08rem; margin:.45rem 0 .35rem; }
+  .agent-status { display:inline-block; border-radius:999px; padding:.23rem .62rem; margin:.35rem 0 .55rem; font-size:.75rem; font-weight:800; }
+  .agent-done { color:#d7e5f3; background:rgba(72,94,118,.20); border:1px solid #40556d; }
+  .agent-note { color:#b3c3d7; font-size:.88rem; line-height:1.55; margin-top:.25rem; }
+  .handoff-line { text-align:center; color:#a6bad0; font-size:.85rem; font-weight:650; padding:.8rem 0 .35rem; }
+  .mini-label { color:#91a7c0; text-transform:uppercase; letter-spacing:.1em; font-size:.72rem; font-weight:800; }
+  footer { visibility:hidden; }
 </style>
 <div class="hero">
   <div class="eyebrow">Mainframe AIOps · Storage Operations</div>
@@ -70,7 +68,7 @@ st.markdown("""
   <span class="status-pill">● SYNTHETIC DEMONSTRATION · NO PRODUCTION CONNECTIVITY</span>
 </div>
 """, unsafe_allow_html=True)
-st.caption("Deterministic capacity calculations · Three-agent workflow · Optional Gemini-assisted investigation")
+st.caption("DETERMINISTIC CAPACITY ANALYTICS  •  THREE-AGENT ORCHESTRATION  •  OPTIONAL GEMINI-ASSISTED INVESTIGATION")
 with st.expander("Safety and data notice", expanded=False):
     st.info("All pools, events, and metrics are synthetic. Forecasts are linear estimates, not guaranteed breach dates. The LLM receives only supplied synthetic evidence. No production storage changes are executed.")
 
@@ -86,15 +84,25 @@ c1.metric("Monitored pools", len(inventory))
 c2.metric("Critical pools", len(critical))
 c3.metric("Warning pools", len(warning))
 c4.metric("Fast-growth pools", len(fast_growth))
-chart = px.bar(inventory.sort_values("utilization_pct", ascending=False), x="pool_id", y="utilization_pct", color="environment", template="plotly_white",
-               hover_data=["warning_threshold_pct", "critical_threshold_pct", "daily_growth_pp", "business_criticality"],
-               title="Current DASD pool utilization", labels={"pool_id": "Storage pool", "utilization_pct": "Utilization (%)", "environment": "Environment"})
-chart.update_layout(paper_bgcolor="rgba(255,255,255,0)", plot_bgcolor="rgba(255,255,255,0)", font=dict(color="#243247"), title_font=dict(color="#13243b"), legend_title_text="Environment", margin=dict(l=12,r=12,t=55,b=12), height=390)
-chart.update_yaxes(range=[0, 100], ticksuffix="%", gridcolor="#dbe3ee", color="#475569")
-chart.update_xaxes(color="#475569", gridcolor="#e2e8f0")
-chart.add_hline(y=85, line_dash="dash", line_color="#f59e0b", annotation_text="Warning 85%", annotation_position="top left", annotation_font_color="#854d0e")
-chart.add_hline(y=95, line_dash="dash", line_color="#ef4444", annotation_text="Critical 95%", annotation_position="bottom right", annotation_font_color="#991b1b")
-st.plotly_chart(chart, use_container_width=True)
+# Executive-friendly dot plot: avoids multicolour bars while retaining threshold context.
+plot_data = inventory.sort_values("utilization_pct", ascending=True).copy()
+plot_data["status"] = plot_data.apply(
+    lambda row: "Priority watch" if row["pool_id"] == "PROD-DASD-07" else "Other pools", axis=1
+)
+chart = px.scatter(
+    plot_data, x="utilization_pct", y="pool_id", color="status",
+    color_discrete_map={"Priority watch": "#e9b65b", "Other pools": "#9aadc2"},
+    template="plotly_dark", size_max=11,
+    hover_data=["environment", "warning_threshold_pct", "critical_threshold_pct", "daily_growth_pp", "business_criticality"],
+    title="DASD pool utilization against operational thresholds",
+    labels={"pool_id": "Storage pool", "utilization_pct": "Utilization (%)", "status": "Pool status", "environment": "Environment"}
+)
+chart.update_traces(marker=dict(size=11, line=dict(width=1, color="#dbe5ef")))
+chart.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", legend_title_text="", margin=dict(l=12,r=18,t=58,b=18), height=390, font=dict(family="Inter, Segoe UI, sans-serif", size=13, color="#c8d6e6"), title=dict(font=dict(size=18, color="#eef5ff"), x=0.01), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+chart.update_xaxes(range=[0, 100], ticksuffix="%", gridcolor="#263449", zeroline=False)
+chart.update_yaxes(title=None, gridcolor="rgba(0,0,0,0)", categoryorder="array", categoryarray=plot_data["pool_id"].tolist())
+chart.add_vline(x=85, line_dash="dash", line_color="#8d7953", annotation_text="Warning 85%", annotation_position="top")
+chart.add_vline(x=95, line_dash="dash", line_color="#865d5d", annotation_text="Critical 95%", annotation_position="top")
 # Spotlight the predefined synthetic incident so executives can orient quickly.
 spotlight = inventory.loc[inventory["pool_id"] == "PROD-DASD-07"]
 if not spotlight.empty:
@@ -105,11 +113,14 @@ if not spotlight.empty:
       <div class="risk-copy">Warning threshold exceeded · Growth {sp['daily_growth_pp']:.2f} percentage points/day · Validate against authoritative telemetry</div></div>
       <div style="text-align:right"><div class="risk-value">{sp['utilization_pct']:.0f}%</div><div class="risk-copy">{100-sp['utilization_pct']:.0f} pp below full capacity</div></div>
     </div>''', unsafe_allow_html=True)
+st.plotly_chart(chart, use_container_width=True, config={"displayModeBar": False})
 show_cols = ["pool_id", "environment", "total_capacity_tb", "used_capacity_tb", "free_capacity_tb", "utilization_pct", "warning_threshold_pct", "critical_threshold_pct", "daily_growth_pp", "business_criticality"]
-st.dataframe(inventory[show_cols].style.format({"utilization_pct": "{:.1f}%", "daily_growth_pp": "+{:.2f} pp/day", "total_capacity_tb": "{:.1f}", "used_capacity_tb": "{:.1f}", "free_capacity_tb": "{:.1f}"}), use_container_width=True, hide_index=True)
+with st.expander("View full storage-pool inventory", expanded=False):
+    st.dataframe(inventory[show_cols].style.format({"utilization_pct": "{:.1f}%", "daily_growth_pp": "+{:.2f} pp/day", "total_capacity_tb": "{:.1f}", "used_capacity_tb": "{:.1f}", "free_capacity_tb": "{:.1f}"}), use_container_width=True, hide_index=True)
 
-st.header("02  /  Run Agent Investigation")
-st.markdown('<div class="section-note">Run the monitoring → investigation → remediation workflow and inspect each handoff.</div>', unsafe_allow_html=True)
+st.divider()
+st.header("02  /  The Agent Workflow")
+st.markdown('<div class="section-note">Three specialized agents pass structured evidence from detection to investigation to human-governed action.</div>', unsafe_allow_html=True)
 if "workflow_result" not in st.session_state:
     st.session_state.workflow_result = None
 use_llm = st.checkbox("Enable optional LLM-assisted investigation", value=False,
@@ -152,7 +163,7 @@ else:
         with t3:
             st.markdown('<div class="agent-card"><div class="agent-kicker">Stage 03 · Recommend</div><div class="agent-name">Remediation & Operations</div><span class="agent-status agent-done">✓ Completed</span><div class="agent-note">Calculated the threshold forecast and prepared prioritized checks with a human approval gate.</div></div>', unsafe_allow_html=True)
         st.markdown('<div class="handoff-line">Incident object  →  Investigation report  →  Consolidated incident report</div>', unsafe_allow_html=True)
-    with st.expander("Agent execution trace and tool invocations", expanded=True):
+    with st.expander("Technical detail · Agent execution trace and tool invocations", expanded=False):
         if trace:
             st.dataframe(pd.DataFrame(trace), use_container_width=True, hide_index=True)
         else:
@@ -165,8 +176,9 @@ else:
         remediation = result["remediation"]
         st.subheader("Agent 1 — Capacity Monitoring Agent")
         st.write(result["monitoring"]["selected_incident"]["monitoring_summary"])
-        st.json({"incident_id": incident["incident_id"], "pool_id": incident["pool_id"], "severity": incident["severity"],
-                 "priority_score": incident["priority_score"], "trigger_reasons": incident["trigger_reasons"]})
+        with st.expander("View structured detection payload", expanded=False):
+            st.json({"incident_id": incident["incident_id"], "pool_id": incident["pool_id"], "severity": incident["severity"],
+                     "priority_score": incident["priority_score"], "trigger_reasons": incident["trigger_reasons"]})
         st.subheader("Agent 2 — Capacity Investigation Agent")
         left, right = st.columns(2)
         with left:
@@ -203,10 +215,13 @@ else:
                 for item in llm_result["evidence_limitations"]:
                     st.write(f"- {item}")
         elif investigation.get("llm_error"):
-            st.warning("LLM analysis was not used; deterministic findings are shown. Details: " + investigation["llm_error"])
+            st.info("Optional LLM analysis was unavailable for this run. Deterministic findings and recommendations are still available.")
+            with st.expander("LLM diagnostic details", expanded=False):
+                st.code(investigation["llm_error"])
         st.markdown("**Simulated operational events**")
         st.dataframe(pd.DataFrame(investigation["events"]), use_container_width=True, hide_index=True)
 
+        st.divider()
         st.header("03  /  Recommended Actions")
         st.markdown('<div class="section-note">Forecast the risk, review prioritized checks, and keep operational changes behind human approval.</div>', unsafe_allow_html=True)
         forecast = remediation["forecast"]
@@ -231,11 +246,18 @@ else:
             st.checkbox(item["item"], key=f"approval_{i}")
         st.warning(f"Action status: {remediation['action_record']['approval_status']}. No production storage change is executed by this demo.")
 
+        st.divider()
         st.header("04  /  Incident Report")
         st.markdown('<div class="section-note">Review the consolidated output or export the report for a handoff or demo artifact.</div>', unsafe_allow_html=True)
-        st.json(result["report"])
-        payload = json.dumps(result["report"], indent=2, ensure_ascii=False)
-        st.download_button("⬇  Download JSON incident report", data=payload, file_name=f"{incident['incident_id']}_report.json", mime="application/json", use_container_width=True)
+        report = result["report"]
+        meta_left, meta_mid, meta_right = st.columns([1.2, 1, 1])
+        meta_left.metric("Incident reference", incident["incident_id"])
+        meta_mid.metric("Report classification", "Synthetic data")
+        meta_right.metric("Production action", "Not executed")
+        payload = json.dumps(report, indent=2, ensure_ascii=False)
+        st.download_button("Download incident report (JSON)", data=payload, file_name=f"{incident['incident_id']}_report.json", mime="application/json", use_container_width=True)
+        with st.expander("Inspect complete JSON report", expanded=False):
+            st.json(report)
 
 with st.expander("About the demo architecture"):
     st.markdown("""

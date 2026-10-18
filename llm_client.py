@@ -29,7 +29,7 @@ def resolve_llm_config(streamlit_secrets=None) -> dict:
     }
 
 
-def analyze_investigation(incident: dict, deterministic_report: dict, config: dict, timeout_seconds: int = 60) -> dict:
+def analyze_investigation(incident: dict, deterministic_report: dict, config: dict, timeout_seconds: int = 25) -> dict:
     """Ask an optional LLM to interpret evidence; returns validated advisory fields only."""
     missing = [key for key in ("base_url", "api_key", "model") if not config.get(key)]
     if missing:
