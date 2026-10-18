@@ -113,10 +113,10 @@ if not spotlight.empty:
       <div class="risk-copy">Warning threshold exceeded · Growth {sp['daily_growth_pp']:.2f} percentage points/day · Validate against authoritative telemetry</div></div>
       <div style="text-align:right"><div class="risk-value">{sp['utilization_pct']:.0f}%</div><div class="risk-copy">{100-sp['utilization_pct']:.0f} pp below full capacity</div></div>
     </div>''', unsafe_allow_html=True)
-st.plotly_chart(chart, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(chart, width="stretch", config={"displayModeBar": False})
 show_cols = ["pool_id", "environment", "total_capacity_tb", "used_capacity_tb", "free_capacity_tb", "utilization_pct", "warning_threshold_pct", "critical_threshold_pct", "daily_growth_pp", "business_criticality"]
 with st.expander("View full storage-pool inventory", expanded=False):
-    st.dataframe(inventory[show_cols].style.format({"utilization_pct": "{:.1f}%", "daily_growth_pp": "+{:.2f} pp/day", "total_capacity_tb": "{:.1f}", "used_capacity_tb": "{:.1f}", "free_capacity_tb": "{:.1f}"}), use_container_width=True, hide_index=True)
+    st.dataframe(inventory[show_cols].style.format({"utilization_pct": "{:.1f}%", "daily_growth_pp": "+{:.2f} pp/day", "total_capacity_tb": "{:.1f}", "used_capacity_tb": "{:.1f}", "free_capacity_tb": "{:.1f}"}), width="stretch", hide_index=True)
 
 st.divider()
 st.header("02  /  The Agent Workflow")
@@ -136,7 +136,7 @@ if use_llm:
         st.info(f"LLM mode enabled · configured model: {llm_config['model']}. Synthetic evidence only; no production tools are available to the model.")
     else:
         st.warning("LLM mode selected, but configuration is incomplete. The workflow will safely fall back to deterministic Python investigation. Configure LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL in Streamlit Secrets to enable inference.")
-if st.button("▶  Investigate Capacity Risk", type="primary", use_container_width=True):
+if st.button("▶  Investigate Capacity Risk", type="primary", width="stretch"):
     with st.spinner("Running monitoring → investigation → remediation agents..."):
         st.session_state.workflow_result = run_workflow(use_llm=use_llm, llm_config=llm_config)
 
@@ -165,7 +165,7 @@ else:
         st.markdown('<div class="handoff-line">Incident object  →  Investigation report  →  Consolidated incident report</div>', unsafe_allow_html=True)
     with st.expander("Technical detail · Agent execution trace and tool invocations", expanded=False):
         if trace:
-            st.dataframe(pd.DataFrame(trace), use_container_width=True, hide_index=True)
+            st.dataframe(pd.DataFrame(trace), width="stretch", hide_index=True)
         else:
             st.write("No trace entries available.")
     if result["status"] == "no_incidents":
@@ -224,7 +224,7 @@ else:
             if llm_result.get("evidence_refs"):
                 st.caption("Evidence references: " + " · ".join(llm_result["evidence_refs"]))
             if llm_result.get("findings"):
-                st.dataframe(pd.DataFrame(llm_result["findings"]), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(llm_result["findings"]), width="stretch", hide_index=True)
             st.caption(f"Approved read-only tool calls: {len(llm_result.get('tool_calls_made', []))} · Tool-call rounds: {llm_result.get('tool_call_rounds', 0)}")
 
         verification = result.get("verification", {})
@@ -238,12 +238,12 @@ else:
         with st.expander("View verification checks", expanded=False):
             checks = verification.get("checks", [])
             if checks:
-                st.dataframe(pd.DataFrame(checks), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(checks), width="stretch", hide_index=True)
             else:
                 st.write("No verification checks available.")
 
         st.markdown("**Simulated operational events**")
-        st.dataframe(pd.DataFrame(investigation["events"]), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(investigation["events"]), width="stretch", hide_index=True)
 
         st.divider()
         st.header("03  /  Recommended Actions")
@@ -262,7 +262,7 @@ else:
         for assumption in forecast["assumptions"]:
             st.write(f"- {assumption}")
         st.markdown("**Prioritized recommendations**")
-        st.dataframe(pd.DataFrame(remediation["recommendations"]), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(remediation["recommendations"]), width="stretch", hide_index=True)
         st.markdown("**Potential business impact**")
         st.write(remediation["business_impact"])
         st.markdown("**Human approval checklist**")
@@ -279,7 +279,7 @@ else:
         meta_mid.metric("Report classification", "Synthetic data")
         meta_right.metric("Production action", "Not executed")
         payload = json.dumps(report, indent=2, ensure_ascii=False)
-        st.download_button("Download incident report (JSON)", data=payload, file_name=f"{incident['incident_id']}_report.json", mime="application/json", use_container_width=True)
+        st.download_button("Download incident report (JSON)", data=payload, file_name=f"{incident['incident_id']}_report.json", mime="application/json", width="stretch")
         with st.expander("Inspect complete JSON report", expanded=False):
             st.json(report)
 
