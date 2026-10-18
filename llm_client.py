@@ -13,7 +13,9 @@ from urllib.request import Request, urlopen
 
 from tools import get_pool_history, get_pool_events, calculate_utilization, forecast_threshold_breach
 
-MAX_TOOL_ROUNDS = 3
+MAX_TOOL_ROUNDS = 2
+MAX_LLM_WALL_SECONDS = 150
+MAX_REQUEST_ATTEMPTS = 2
 RETRYABLE_HTTP_CODES = {429, 500, 502, 503, 504}
 
 
@@ -33,23 +35,27 @@ def resolve_llm_config(streamlit_secrets=None) -> dict:
             "api_key": get_value("LLM_API_KEY"), "model": get_value("LLM_MODEL")}
 
 
-def _post_chat(endpoint: str, payload: dict, api_key: str, timeout_seconds: int) -> dict:
-    """Make a bounded request with short exponential backoff for transient errors."""
+def _post_chat(endpoint: str, payload: dict, api_key: str, timeout_seconds: int, deadline: float) -> dict:
+    """Make a bounded request, respecting the total investigation deadline."""
     body = json.dumps(payload).encode("utf-8")
-    for attempt in range(3):
+    for attempt in range(MAX_REQUEST_ATTEMPTS):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError("LLM investigation exceeded its 150-second time budget.")
+        request_timeout = max(1, min(timeout_seconds, int(remaining)))
         request = Request(endpoint, data=body, method="POST", headers={
             "Authorization": f"Bearer {api_key}", "Content-Type": "application/json"})
         try:
-            with urlopen(request, timeout=timeout_seconds) as response:
+            with urlopen(request, timeout=request_timeout) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
-            if exc.code in RETRYABLE_HTTP_CODES and attempt < 2:
+            if exc.code in RETRYABLE_HTTP_CODES and attempt < MAX_REQUEST_ATTEMPTS - 1:
                 time.sleep(1 * (2 ** attempt))
                 continue
             raise RuntimeError(f"LLM provider returned HTTP {exc.code}.") from None
         except (URLError, TimeoutError) as exc:
-            if attempt < 2:
-                time.sleep(1 * (2 ** attempt))
+            if attempt < MAX_REQUEST_ATTEMPTS - 1:
+                time.sleep(min(1, max(0, deadline - time.monotonic())))
                 continue
             kind = "TimeoutError" if isinstance(exc, TimeoutError) else type(exc).__name__
             raise RuntimeError(f"LLM provider could not be reached: {kind}.") from None
@@ -90,6 +96,10 @@ def analyze_investigation(incident: dict, deterministic_report: dict, config: di
     if missing:
         raise ValueError("LLM configuration incomplete: " + ", ".join(missing))
     endpoint = config["base_url"].rstrip("/") + "/chat/completions"
+    deadline = time.monotonic() + MAX_LLM_WALL_SECONDS
+    if trace is not None:
+        trace.append({"time": "LLM", "agent": "Capacity Investigation Agent", "event": "llm_start",
+                      "detail": "LLM investigation started; maximum total wait is 150 seconds.", "kind": "llm"})
     pool_id = incident["pool_id"]
     system_prompt = (
         "You are a cautious mainframe DASD capacity investigation assistant. Analyze only supplied synthetic evidence and approved tool results. "
@@ -111,7 +121,7 @@ def analyze_investigation(incident: dict, deterministic_report: dict, config: di
     for round_number in range(MAX_TOOL_ROUNDS + 1):
         payload = {"model": config["model"], "temperature": 0.1, "messages": messages,
                    "tools": _tool_specs(), "tool_choice": "auto"}
-        envelope = _post_chat(endpoint, payload, config["api_key"], timeout_seconds)
+        envelope = _post_chat(endpoint, payload, config["api_key"], timeout_seconds, deadline)
         try:
             message = envelope["choices"][0]["message"]
         except (KeyError, IndexError, TypeError):
